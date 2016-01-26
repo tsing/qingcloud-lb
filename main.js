@@ -70,20 +70,17 @@ async function listenToEvents(serviceConfig: ServiceConfig, lbConfigs: Array<LBC
   const statusList = [
     'destroy',
     'die',
-    'kill',
     'oom',
-    'pause',
     'restart',
     'start',
     'stop',
-    'unpause'
   ];
 
   const iteraotr = api.containerListener(statusList);
   for (const promise of iteraotr) {
     const payload = await promise;
+    console.log(payload);
     const {id: containerID} = payload;
-    console.log(containerID);
     if (containers.some(c => c.Id === containerID)) {
       containers = await fetchServiceContainers(serviceConfig);
       try {
