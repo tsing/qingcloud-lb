@@ -95,6 +95,7 @@ async function listenToEvents(serviceConfig: ServiceConfig, lbConfigs: Array<LBC
       const [container] = await api.containers([containerID]);
       if (container && isServiceContainer(container, serviceConfig)) {
         await sync(serviceConfig, lbConfigs);
+        containers = await fetchServiceContainers(serviceConfig);
       }
     }
   }
