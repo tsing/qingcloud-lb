@@ -56,7 +56,8 @@ async function syncBackends(lbConfigs: Array<LBConfig>, backends: Array<Backend>
     await api.syncBackends(lbConfig, backends);
   });
 
-  return await Promise.all(promises);
+  const changes = await Promise.all(promises);
+  await api.updateLoadBalancers(lbConfigs.filter((_, idx) => changes[idx]));
 }
 
 async function sync(serviceConfig: ServiceConfig, lbConfigs: Array<LBConfig>) {
