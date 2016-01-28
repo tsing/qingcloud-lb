@@ -84,11 +84,7 @@ async function listenToEvents(serviceConfig: ServiceConfig, lbConfigs: Array<LBC
     const {id: containerID} = payload;
     if (containers.some(c => c.Id === containerID)) {
       containers = await fetchServiceContainers(serviceConfig);
-      try {
-        await sync(serviceConfig, lbConfigs);
-      } catch (err) {
-        console.error(err.stack);
-      }
+      await sync(serviceConfig, lbConfigs);
     } else {
       const [container] = await api.containers([containerID]);
       if (container && isServiceContainer(container, serviceConfig)) {
