@@ -65,6 +65,12 @@ async function sync(serviceConfig: ServiceConfig, lbConfigs: Array<LBConfig>) {
   await syncBackends(lbConfigs, backends);
 }
 
+async function delay(milliseconds: number) {
+  return new Promise(resolve => {
+    setTimeout(resolve, milliseconds);
+  });
+}
+
 async function listenToEvents(serviceConfig: ServiceConfig, lbConfigs: Array<LBConfig>) {
   let containers = await fetchServiceContainers(serviceConfig);
   const api = csphereAPI();
@@ -83,9 +89,11 @@ async function listenToEvents(serviceConfig: ServiceConfig, lbConfigs: Array<LBC
     console.log(payload);
     const {id: containerID} = payload;
     if (containers.some(c => c.Id === containerID)) {
+      await delay(500);
       containers = await fetchServiceContainers(serviceConfig);
       await sync(serviceConfig, lbConfigs);
     } else {
+      await delay(500);
       const [container] = await api.containers([containerID]);
       if (container && isServiceContainer(container, serviceConfig)) {
         await sync(serviceConfig, lbConfigs);
