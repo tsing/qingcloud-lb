@@ -53,11 +53,13 @@ async function fetchServiceBackends(config: ServiceConfig): Promise<Array<Backen
 async function syncBackends(lbConfigs: Array<LBConfig>, backends: Array<Backend>) {
   const api = qingcloudAPI();
   const promises = lbConfigs.map(async function(lbConfig) {
-    await api.syncBackends(lbConfig, backends);
+    return await api.syncBackends(lbConfig, backends);
   });
 
   const changes = await Promise.all(promises);
-  await api.updateLoadBalancers(lbConfigs.filter((_, idx) => changes[idx]));
+  if (changes.some(bool => bool)) {
+    await api.updateLoadBalancers(lbConfigs.filter((_, idx) => changes[idx]));
+  }
 }
 
 async function sync(serviceConfig: ServiceConfig, lbConfigs: Array<LBConfig>) {
