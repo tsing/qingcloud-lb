@@ -77,12 +77,9 @@ async function listenToEvents(serviceConfig: ServiceConfig, lbConfigs: Array<LBC
   let containers = await fetchServiceContainers(serviceConfig);
   const api = csphereAPI();
   const statusList = [
-    'destroy',
     'die',
-    'oom',
     'restart',
-    'start',
-    'stop',
+    'start'
   ];
 
   const iteraotr = api.containerListener(statusList);
