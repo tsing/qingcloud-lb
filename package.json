@@ -4,7 +4,7 @@
   "description": "Monitor instance services status and trigger load balancer update",
   "main": "main.js",
   "scripts": {
-    "start": "babel-node main.js",
+    "start": "babel-node src/main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "tsing <tsing@nicescale.com>",
@@ -17,7 +17,7 @@
     "babel-plugin-transform-flow-strip-types": "~6.4.0",
     "babel-preset-es2015-node5": "~1.1.2",
     "eventsource": "~0.1.6",
-    "node-fetch": "~1.3.3",
+    "isomorphic-fetch": "~2.2.1",
     "qingcloud": "~1.0.0"
   }
 }

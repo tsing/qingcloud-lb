@@ -1,13 +1,8 @@
 /* @flow */
 
-import fetch from 'node-fetch';
 import EventSource from 'eventsource';
 
-export type ServiceConfig = {
-  instance: string;
-  service: string;
-  port: number;
-}
+import type {Service} from './types';
 
 export default class CSphereAPI {
   endpoint: string;
@@ -30,24 +25,38 @@ export default class CSphereAPI {
     return await response.json();
   }
 
-  async containers(containerIDs: Array<string>): Promise<Array<Object>> {
+  async serviceContainers(instance: string, service: string): Promise<Array<Object>> {
     const {endpoint, token} = this;
-    const promises = containerIDs.map(async function(containerID) {
-      try {
-        const response = await fetch(`${endpoint}/api/containers/${containerID}/json`, {
-          method: 'GET',
-          headers: {
-            'Csphere-Api-Key': token
-          }
-        });
-        return await response.json();
-      } catch (err) {
-        console.error(err.stack);
-        return null;
+    const filter = JSON.stringify({
+      labels: [
+        `csphere_instancename=${instance}`,
+        `csphere_servicename=${service}`
+      ]
+    });
+
+    const response = await fetch(`${endpoint}/api/containers?filter=${encodeURIComponent(filter)}`, {
+      method: 'GET',
+      headers: {
+        'Csphere-Api-Key': token
       }
     });
-    const containers = await Promise.all(promises);
-    return containers.filter(c => c);
+    return await response.json();
+  }
+
+  async container(containerID: string): Promise<?Object> {
+    const {endpoint, token} = this;
+    try {
+      const response = await fetch(`${endpoint}/api/containers/${containerID}/json`, {
+        method: 'GET',
+        headers: {
+          'Csphere-Api-Key': token
+        }
+      });
+      return await response.json();
+    } catch (err) {
+      console.error(err.stack);
+      return null;
+    }
   }
 
   async nodes(nodeIDs: Array<string>): Promise<Array<Object>> {
@@ -114,17 +123,13 @@ export default class CSphereAPI {
 }
 
 
-export function isContainerRunning(container: Object): boolean {
-  return container.info.State.Running === true;
-}
-
-export function containerHostPort(container: Object, port: number): number {
-  const hostPort = container.info.NetworkSettings.Ports[`${port}/tcp`][0].HostPort;
-  return parseInt(hostPort, 10);
-}
-
-export function isServiceContainer(container: Object, serviceConfig: ServiceConfig): boolean {
+export function isServiceContainer(container: Object, service: Service): boolean {
   const Labels = container.Labels || {};
-  return (Labels.csphere_instancename === serviceConfig.instance &&
-          Labels.csphere_servicename === serviceConfig.service);
+  return (Labels.csphere_instancename === service.instance &&
+          Labels.csphere_servicename === service.name);
+}
+
+export function exposedPort(container: Object, port: number): number {
+  const config = container.Ports.find(c => c.PrivatePort === port);
+  return config ? config.PublicPort : 0;
 }

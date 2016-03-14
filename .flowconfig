@@ -4,6 +4,7 @@
 [include]
 
 [libs]
+./lib/
 
 [options]
 suppress_type=$FlowIssue

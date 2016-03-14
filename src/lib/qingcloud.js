@@ -7,6 +7,18 @@ global.querystring = querystring;
 
 import Qingcloud from 'qingcloud';
 
+import type {Backend, LB} from './types';
+
+type SavedBackend = Backend & {
+  loadbalancer_backend_id: string;
+};
+
+async function sleep(delay: number) {
+  return new Promise(resolve => {
+    setTimeout(() => resolve(), delay);
+  });
+}
+
 const actions = {
   DescribeLoadBalancerBackends: {
     required: ['zone'],
@@ -24,24 +36,18 @@ const actions = {
     required: ['zone'],
     optional: ['loadbalancer_listeners.n', 'loadbalancer', 'verbose', 'offset', 'limit']
   },
+  DescribeLoadBalancers: {
+    required: ['zone'],
+    optional: ['loadbalancers.n', 'status.n', 'search_word', 'tags.n', 'verbose', 'offset', 'limit']
+  },
   UpdateLoadBalancers: {
     required: ['zone', 'loadbalancers.n'],
     optional: []
+  },
+  DescribeJobs: {
+    required: ['zone'],
+    optional: ['jobs.n', 'status.n', 'job_action', 'verbose', 'offset', 'limit']
   }
-};
-
-export type LBConfig = {
-  listenerID: string;
-  policyID: string;
-};
-
-export type Backend = {
-  resource_id: string;
-  port: number;
-  loadbalancer_policy_id?: string;
-  loadbalancer_backend_id?: string;
-  weight?: number;
-  loadbalancer_backend_name?: string;
 };
 
 function equalBackend(backend1: Backend, backend2: Backend): boolean {
@@ -79,19 +85,19 @@ export default class QingcloudAPI {
     });
   }
 
-  async addBackends(lbconfig: LBConfig, backends: Array<Backend>): Promise<void> {
+  async addBackends(lbconfig: LB, backends: Array<Backend>): Promise<void> {
     if (!backends.length) {
       return;
     }
     await this.request('AddLoadBalancerBackends', {
-      loadbalancer_listener: lbconfig.listenerID,
-      backends: backends.map(b => Object.assign(b, {
-        loadbalancer_policy_id: lbconfig.policyID
+      loadbalancer_listener: lbconfig.listener,
+      backends: backends.map(b => Object.assign({}, b, {
+        loadbalancer_policy_id: lbconfig.policy
       }))
     });
   }
 
-  async removeBackends(lbconfig: LBConfig, backends: Array<Backend>): Promise<void> {
+  async removeBackends(lbconfig: LB, backends: Array<SavedBackend>): Promise<void> {
     if (!backends.length) {
       return;
     }
@@ -100,16 +106,16 @@ export default class QingcloudAPI {
     });
   }
 
-  async fetchBackends(lbconfig: LBConfig): Promise<Array<Object>> {
+  async fetchBackends(lbconfig: LB): Promise<Array<SavedBackend>> {
     const response = await this.request('DescribeLoadBalancerBackends', {
-      loadbalancer_listener: lbconfig.listenerID
+      loadbalancer_listener: lbconfig.listener
     });
 
     return response.loadbalancer_backend_set.filter(
-      backend => backend.loadbalancer_policy_id === lbconfig.policyID);
+      backend => backend.loadbalancer_policy_id === lbconfig.policy);
   }
 
-  async syncBackends(lbconfig: LBConfig, newBackends: Array<Backend>): Promise<boolean> {
+  async syncBackends(lbconfig: LB, newBackends: Array<Backend>): Promise<boolean> {
     const currBackends = await this.fetchBackends(lbconfig);
 
     const backendsToRemove = currBackends.filter(
@@ -133,16 +139,38 @@ export default class QingcloudAPI {
     return backendsChanged;
   }
 
-  async updateLoadBalancers(lbConfigs: Array<LBConfig>): Promise<void> {
+  async updateLoadBalancers(listenerIDs: Array<string>): Promise<void> {
+    if (!listenerIDs.length) {
+      return;
+    }
+
     const response = await this.request('DescribeLoadBalancerListeners', {
-      loadbalancer_listeners: lbConfigs.map(lbconfig => lbconfig.listenerID)
+      loadbalancer_listeners: Array.from(new Set(listenerIDs))
     });
 
     const loadBalancerIDs = response.loadbalancer_listener_set.map(
       listener => listener.loadbalancer_id);
 
-    await this.request('UpdateLoadBalancers', {
-      loadbalancers: loadBalancerIDs
+    const {job_id: jobID} = await this.request('UpdateLoadBalancers', {
+      loadbalancers: Array.from(new Set(loadBalancerIDs))
     });
+
+    return await this.waitForJob(jobID);
   }
+
+  async waitForJob(jobID: string): Promise<void> {
+    const response = await this.request('DescribeJobs', {
+      jobs: [jobID]
+    });
+
+    const waitingForStatus = ['working', 'pending'];
+
+    if (response.job_set.length > 0 && waitingForStatus.includes(response.job_set[0].status)) {
+      await sleep(2000);
+      await this.waitForJob(jobID);
+    } else {
+      console.log('job', jobID, response.job_set);
+    }
+  }
+
 }
