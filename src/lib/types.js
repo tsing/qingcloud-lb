@@ -35,3 +35,32 @@ export type Backend = {
   weight: number;
   loadbalancer_backend_name: string;
 }
+
+type ServiceLabels = {
+  csphere_instancename: string;
+  csphere_servicename: string;
+  csphere_containerseq: string;
+}
+
+export type Container = {
+  Id: string;
+  node_id: string;
+  Labels?: ?ServiceLabels;
+}
+
+export type ServiceContainer = Container & {
+  Labels: ServiceLabels;
+  Ports: Array<{
+    IP: string;
+    PrivatePort: number;
+    PublicPort: number;
+    Type: 'tcp' | 'udp'
+  }>;
+}
+
+export type Node = {
+  id: string;
+  labels: {
+    qingcloud: string;
+  };
+}

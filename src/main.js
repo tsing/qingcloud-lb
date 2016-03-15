@@ -6,7 +6,6 @@ import fs from 'fs';
 import Manager from './lib/manager';
 import type {Service, LB, Mappings, CSphereCredential, QingcloudCredential} from './lib/types';
 
-
 async function main() {
   const config = process.argv[2];
   if (!config) {

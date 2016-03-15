@@ -2,7 +2,7 @@
 
 import EventSource from 'eventsource';
 
-import type {Service} from './types';
+import type {Service, Container, ServiceContainer, Node} from './types';
 
 export default class CSphereAPI {
   endpoint: string;
@@ -15,17 +15,7 @@ export default class CSphereAPI {
     });
   }
 
-  async instance(name: string): Object {
-    const response = await fetch(`${this.endpoint}/api/instances/${name}`, {
-      type: 'GET',
-      headers: {
-        'Csphere-Api-Key': this.token
-      }
-    });
-    return await response.json();
-  }
-
-  async serviceContainers(instance: string, service: string): Promise<Array<Object>> {
+  async serviceContainers(instance: string, service: string): Promise<Array<ServiceContainer>> {
     const {endpoint, token} = this;
     const filter = JSON.stringify({
       labels: [
@@ -43,7 +33,7 @@ export default class CSphereAPI {
     return await response.json();
   }
 
-  async container(containerID: string): Promise<?Object> {
+  async container(containerID: string): Promise<?Container> {
     const {endpoint, token} = this;
     try {
       const response = await fetch(`${endpoint}/api/containers/${containerID}/json`, {
@@ -63,23 +53,18 @@ export default class CSphereAPI {
     }
   }
 
-  async nodes(nodeIDs: Array<string>): Promise<Array<Object>> {
+  async nodes(nodeIDs: Array<string>): Promise<Array<Node>> {
     const {endpoint, token} = this;
-    const promises = nodeIDs.map(async function(nodeID) {
-      try {
-        const response = await fetch(`${endpoint}/api/nodes/${nodeID}`, {
-          method: 'GET',
-          headers: {
-            'Csphere-Api-Key': token
-          }
-        });
-        return await response.json();
-      } catch (err) {
-        return null;
-      }
+    const promises = nodeIDs.map(async function(nodeID): Promise<Node> {
+      const response = await fetch(`${endpoint}/api/nodes/${nodeID}`, {
+        method: 'GET',
+        headers: {
+          'Csphere-Api-Key': token
+        }
+      });
+      return await response.json();
     });
-    const nodes = await Promise.all(promises);
-    return nodes.filter(node => node);
+    return await Promise.all(promises);
   }
 
   containerListener(statusList: Array<string>): Object {
@@ -127,13 +112,25 @@ export default class CSphereAPI {
 }
 
 
-export function isServiceContainer(container: Object, service: Service): boolean {
-  const Labels = container.Labels || {};
-  return (Labels.csphere_instancename === service.instance &&
-          Labels.csphere_servicename === service.name);
+export function isServiceContainer(container: Container|ServiceContainer, service: Service): boolean {
+  const labels = container.Labels;
+  if (!labels) {
+    return false;
+  }
+
+  if (!labels.csphere_instancename) {
+    return false;
+  }
+
+  if (!labels.csphere_servicename) {
+    return false;
+  }
+
+  return (labels.csphere_instancename === service.instance &&
+          labels.csphere_servicename === service.name);
 }
 
-export function exposedPort(container: Object, port: number): number {
+export function exposedPort(container: ServiceContainer, port: number): number {
   const config = container.Ports.find(c => c.PrivatePort === port);
   return config ? config.PublicPort : 0;
 }

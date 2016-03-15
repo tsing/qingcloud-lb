@@ -4,7 +4,7 @@ import LRU from 'lru-cache';
 
 import type {
   CSphereCredential, QingcloudCredential,
-  Service, LB, Backend, Mappings
+  Service, LB, Backend, Mappings, ServiceContainer, Container, Node
 } from './types';
 
 import CSphereAPI, {exposedPort, isServiceContainer} from './csphere';
@@ -36,13 +36,13 @@ export default class Manager {
     await this.saveBackends(lbs, backends);
   }
 
-  cache(container: Object, service: Service): void {
+  cache(container: ServiceContainer, service: Service): void {
     this.containerCache.set(container.Id, service);
   }
 
   popCache(containerID: string): ?Service {
     if (!this.containerCache.has(containerID)) {
-      return false;
+      return null;
     }
     const service = this.containerCache.get(containerID);
     this.containerCache.del(containerID);
@@ -84,25 +84,31 @@ export default class Manager {
     }
   }
 
-  async scheduleLbUpdate(lbs: Array<LB>): Promise<void> {
+  async scheduleLbUpdate(lbs: Array<LB> = []): Promise<void> {
     this.queue.push(...lbs);
+
     if (this.lbPending) {
       console.log('LB update queued');
       return;
     }
 
-    console.log('LB update started');
+    const onFinish = () => {
+      console.log('LB update finished');
+
+      this.lbPending = false;
+      if (this.queue.length > 0) {
+        this.scheduleLbUpdate();
+      }
+    };
 
     this.lbPending = true;
-    this.qingcloud
-      .updateLoadBalancers(this.queue.map(lb => lb.listener))
-      .then(() => {
-        this.lbPending = false;
-        if (this.queue.length > 0) {
-          this.scheduleLbUpdate([]);
-        }
-      });
+    const listeners = this.queue.map(lb => lb.listener);
     this.queue = [];
+
+    console.log('LB update started');
+    this.qingcloud
+      .updateLoadBalancers(listeners)
+      .then(onFinish);
   }
 
   async listenToEvents(mappings: Mappings): Promise<void> {
@@ -117,13 +123,13 @@ export default class Manager {
       const {id: containerID} = await promise;
       const container = await this.csphere.container(containerID);
       let mapping = null;
-      if (!container) {
+      if (container) {
+        mapping = mappings.find(m => isServiceContainer(container, m.service));
+      } else {
         const cachedService = this.popCache(containerID);
         if (cachedService) {
           mapping = mappings.find(m => sameService(m.service, cachedService));
         }
-      } else {
-        mapping = mappings.find(m => isServiceContainer(container, m.service));
       }
 
       if (mapping) {
