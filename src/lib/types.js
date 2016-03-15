@@ -64,3 +64,5 @@ export type Node = {
     qingcloud: string;
   };
 }
+
+export type BackendNameFilter = (name: string) => boolean;

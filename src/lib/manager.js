@@ -33,7 +33,7 @@ export default class Manager {
     console.log('Service', service);
     const backends = await this.fetchBackends(service);
     console.log('backends', backends);
-    await this.saveBackends(lbs, backends);
+    await this.saveBackends(service, lbs, backends);
   }
 
   cache(container: ServiceContainer, service: Service): void {
@@ -71,11 +71,12 @@ export default class Manager {
     });
   }
 
-  async saveBackends(lbs: Array<LB>, backends: Array<Backend>): Promise<void> {
+  async saveBackends(service: Service, lbs: Array<LB>, backends: Array<Backend>): Promise<void> {
     const {qingcloud} = this;
 
+    const nameFilter = (name: string) => name.startsWith(`${service.instance}-${service.name}-`);
     const promises = lbs.map(async function(lb) {
-      return await qingcloud.syncBackends(lb, backends);
+      return await qingcloud.syncBackends(lb, backends, nameFilter);
     });
 
     const changes = await Promise.all(promises);

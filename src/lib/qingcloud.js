@@ -7,7 +7,7 @@ global.querystring = querystring;
 
 import Qingcloud from 'qingcloud';
 
-import type {Backend, LB} from './types';
+import type {Backend, LB, BackendNameFilter} from './types';
 
 type SavedBackend = Backend & {
   loadbalancer_backend_id: string;
@@ -112,11 +112,15 @@ export default class QingcloudAPI {
     });
 
     return response.loadbalancer_backend_set.filter(
-      backend => backend.loadbalancer_policy_id === lbconfig.policy);
+      backend => backend.loadbalancer_policy_id === lbconfig.policy)
   }
 
-  async syncBackends(lbconfig: LB, newBackends: Array<Backend>): Promise<boolean> {
-    const currBackends = await this.fetchBackends(lbconfig);
+  async syncBackends(lbconfig: LB, newBackends: Array<Backend>, filter?: BackendNameFilter): Promise<boolean> {
+    let currBackends = await this.fetchBackends(lbconfig);
+
+    if (filter) {
+      currBackends = currBackends.filter(backend => filter && filter(backend.loadbalancer_backend_name));
+    }
 
     const backendsToRemove = currBackends.filter(
       backend => !newBackends.some(equalBackend.bind(null, backend)));
