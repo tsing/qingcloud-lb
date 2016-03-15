@@ -52,7 +52,11 @@ export default class CSphereAPI {
           'Csphere-Api-Key': token
         }
       });
-      return await response.json();
+      if (response.ok) {
+        return await response.json();
+      }
+
+      return null;
     } catch (err) {
       console.error(err.stack);
       return null;

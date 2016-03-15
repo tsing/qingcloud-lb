@@ -1,5 +1,7 @@
 /* @flow */
 
+import LRU from 'lru-cache';
+
 import type {
   CSphereCredential, QingcloudCredential,
   Service, LB, Backend, Mappings
@@ -16,14 +18,14 @@ export default class Manager {
   csphere: CSphereAPI;
   qingcloud: QingcloudAPI;
   queue: Array<LB>;
-  containerCache: {[key: string]: Service};
+  containerCache: LRU;
   lbPending: boolean;
 
   constructor(csphere: CSphereCredential, qingcloud: QingcloudCredential) {
     this.csphere = new CSphereAPI(csphere.url, csphere.token);
     this.qingcloud = new QingcloudAPI(qingcloud.zone, qingcloud.key, qingcloud.secret);
     this.queue = [];
-    this.containerCache = {};
+    this.containerCache = LRU(200);
     this.lbPending = false;
   }
 
@@ -35,11 +37,16 @@ export default class Manager {
   }
 
   cache(container: Object, service: Service): void {
-    this.containerCache[container.Id] = service;
+    this.containerCache.set(container.Id, service);
   }
 
-  inCache(containerID: string): ?Service {
-    return this.containerCache[containerID];
+  popCache(containerID: string): ?Service {
+    if (!this.containerCache.has(containerID)) {
+      return false;
+    }
+    const service = this.containerCache.get(containerID);
+    this.containerCache.del(containerID);
+    return service;
   }
 
   async fetchBackends(service: Service): Promise<Array<Backend>> {
@@ -111,7 +118,7 @@ export default class Manager {
       const container = await this.csphere.container(containerID);
       let mapping = null;
       if (!container) {
-        const cachedService = this.inCache(containerID);
+        const cachedService = this.popCache(containerID);
         if (cachedService) {
           mapping = mappings.find(m => sameService(m.service, cachedService));
         }
