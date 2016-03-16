@@ -4,7 +4,7 @@
   "description": "Monitor instance services status and trigger load balancer update",
   "main": "main.js",
   "scripts": {
-    "start": "babel-node src/main.js",
+    "start": "babel-node src/main.js config.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "tsing <tsing@nicescale.com>",
