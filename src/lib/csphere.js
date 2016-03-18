@@ -49,7 +49,7 @@ export default class CSphereAPI {
       return null;
     } catch (err) {
       console.error(err.stack);
-      return null;
+      throw err;
     }
   }
 
