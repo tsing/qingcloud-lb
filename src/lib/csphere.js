@@ -24,13 +24,22 @@ export default class CSphereAPI {
       ]
     });
 
-    const response = await fetch(`${endpoint}/api/containers?filter=${encodeURIComponent(filter)}`, {
-      method: 'GET',
-      headers: {
-        'Csphere-Api-Key': token
+    try {
+      const response = await fetch(`${endpoint}/api/containers?filter=${encodeURIComponent(filter)}`, {
+        method: 'GET',
+        headers: {
+          'Csphere-Api-Key': token
+        }
+      });
+      if (response.ok) {
+        return await response.json();
       }
-    });
-    return await response.json();
+
+      throw new Error(`Unexpected response ${response.status} ${response.statusText}`);
+    } catch (err) {
+      console.error(err.stack);
+      throw err;
+    }
   }
 
   async container(containerID: string): Promise<?Container> {
@@ -46,7 +55,7 @@ export default class CSphereAPI {
         return await response.json();
       }
 
-      return null;
+      throw new Error(`Unexpected response ${response.status} ${response.statusText}`);
     } catch (err) {
       console.error(err.stack);
       throw err;
@@ -62,7 +71,10 @@ export default class CSphereAPI {
           'Csphere-Api-Key': token
         }
       });
-      return await response.json();
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error(`Unexpected response ${response.status} ${response.statusText}`);
     });
     return await Promise.all(promises);
   }
