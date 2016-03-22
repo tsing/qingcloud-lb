@@ -30,11 +30,11 @@ export default class Manager {
     this.lbPending = false;
   }
 
-  async sync(service: Service, lbs: Array<LB>): Promise<void> {
+  async sync(service: Service, lbs: Array<LB>): Promise<Array<LB>> {
     console.log('Service', service);
     const backends = await this.fetchBackends(service);
     console.log('backends', backends);
-    await this.saveBackends(service, lbs, backends);
+    return await this.saveBackends(service, lbs, backends);
   }
 
   cache(container: ServiceContainer, service: Service): void {
@@ -72,7 +72,7 @@ export default class Manager {
     });
   }
 
-  async saveBackends(service: Service, lbs: Array<LB>, backends: Array<Backend>): Promise<void> {
+  async saveBackends(service: Service, lbs: Array<LB>, backends: Array<Backend>): Promise<Array<LB>> {
     const {qingcloud} = this;
 
     const nameFilter = (name: string) => name.startsWith(`${service.instance}-${service.name}-`);
@@ -81,13 +81,17 @@ export default class Manager {
     });
 
     const changes = await Promise.all(promises);
-    if (changes.some(bool => bool)) {
-      await this.scheduleLbUpdate(lbs.filter((_, idx) => changes[idx]));
-    }
+    return lbs.filter((_, idx) => changes[idx]);
   }
 
-  async scheduleLbUpdate(lbs: Array<LB> = []): Promise<void> {
+  queueLbUpdate(lbs: Array<LB>) {
     this.queue.push(...lbs);
+  }
+
+  scheduleLbUpdate() {
+    if (this.queue.length === 0) {
+      return;
+    }
 
     if (this.lbPending) {
       console.log('LB update queued');
@@ -98,9 +102,7 @@ export default class Manager {
       console.log('LB update finished');
 
       this.lbPending = false;
-      if (this.queue.length > 0) {
-        this.scheduleLbUpdate();
-      }
+      this.scheduleLbUpdate();
     };
 
     this.lbPending = true;
@@ -135,7 +137,9 @@ export default class Manager {
       }
 
       if (mapping) {
-        await this.sync(mapping.service, mapping.lbs);
+        const lbs = await this.sync(mapping.service, mapping.lbs);
+        this.queueLbUpdate(lbs);
+        sleep(1000).then(() => this.scheduleLbUpdate());
       }
     }
   }

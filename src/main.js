@@ -28,9 +28,10 @@ async function main() {
   await sleep(1000);
 
   for (const {service, lbs} of mappings) {
-    await manager.sync(service, lbs);
+    const changedLbs = await manager.sync(service, lbs);
+    manager.queueLbUpdate(changedLbs);
   }
-
+  manager.scheduleLbUpdate();
   await manager.listenToEvents(mappings);
 }
 
