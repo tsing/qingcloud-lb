@@ -55,7 +55,12 @@ export default class CSphereAPI {
         return await response.json();
       }
 
-      throw new Error(`Unexpected response ${response.status} ${response.statusText}`);
+      if (response.status === 404) {
+        return null;
+      }
+
+      const text = await response.text();
+      throw new Error(`Unexpected response ${response.status} ${response.statusText} ${text}`);
     } catch (err) {
       console.error(err.stack);
       throw err;
