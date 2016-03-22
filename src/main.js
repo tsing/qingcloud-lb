@@ -5,6 +5,7 @@ import fs from 'fs';
 
 import Manager from './lib/manager';
 import type {Service, LB, Mappings, CSphereCredential, QingcloudCredential} from './lib/types';
+import {sleep} from './lib/utils';
 
 async function main() {
   const config = process.argv[2];
@@ -24,6 +25,7 @@ async function main() {
   (mappings: Mappings);
 
   const manager = new Manager(csphere, qingcloud);
+  await sleep(1000);
 
   for (const {service, lbs} of mappings) {
     await manager.sync(service, lbs);

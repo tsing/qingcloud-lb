@@ -8,16 +8,11 @@ global.querystring = querystring;
 import Qingcloud from 'qingcloud';
 
 import type {Backend, LB, BackendNameFilter} from './types';
+import {sleep} from './utils';
 
 type SavedBackend = Backend & {
   loadbalancer_backend_id: string;
 };
-
-async function sleep(delay: number) {
-  return new Promise(resolve => {
-    setTimeout(() => resolve(), delay);
-  });
-}
 
 const actions = {
   DescribeLoadBalancerBackends: {

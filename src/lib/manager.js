@@ -6,6 +6,7 @@ import type {
   CSphereCredential, QingcloudCredential,
   Service, LB, Backend, Mappings, ServiceContainer, Container, Node
 } from './types';
+import {sleep} from './utils';
 
 import CSphereAPI, {exposedPort, isServiceContainer} from './csphere';
 import QingcloudAPI from './qingcloud';
