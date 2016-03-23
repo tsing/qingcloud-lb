@@ -60,6 +60,10 @@ export default class CSphereAPI {
       }
 
       const text = await response.text();
+      if (text.includes('Not found')) {
+        // csphere bug
+        return null;
+      }
       throw new Error(`Unexpected response ${response.status} ${response.statusText} ${text}`);
     } catch (err) {
       console.error(err.stack);
