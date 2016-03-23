@@ -69,7 +69,7 @@ export default class Manager {
         weight: 1,
         loadbalancer_backend_name: `${instance}-${name}-${c.Labels.csphere_containerseq}`
       }
-    });
+    }).filter(c => c.port);
   }
 
   async saveBackends(service: Service, lbs: Array<LB>, backends: Array<Backend>): Promise<Array<LB>> {
@@ -125,6 +125,7 @@ export default class Manager {
     const iteraotr = this.csphere.containerListener(statusList);
     for (const promise of iteraotr) {
       const {id: containerID} = await promise;
+      await sleep(500);
       const container = await this.csphere.container(containerID);
       let mapping = null;
       if (container) {
