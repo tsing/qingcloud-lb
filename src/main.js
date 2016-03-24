@@ -4,7 +4,14 @@ import 'isomorphic-fetch';
 import fs from 'fs';
 
 import Manager from './lib/manager';
-import type {Service, LB, Mappings, CSphereCredential, QingcloudCredential} from './lib/types';
+import type {
+  Service,
+  LB,
+  ServiceMapping,
+  Mappings,
+  CSphereCredential,
+  QingcloudCredential
+} from './lib/types';
 import {sleep} from './lib/utils';
 
 async function main() {
@@ -32,7 +39,15 @@ async function main() {
     manager.queueLbUpdate(changedLbs);
   }
   manager.scheduleLbUpdate();
-  await manager.listenToEvents(mappings);
+
+  manager.observe(mappings, {
+    async next(mapping: ServiceMapping) {
+      const lbs = await manager.sync(mapping.service, mapping.lbs);
+      manager.queueLbUpdate(lbs);
+      await sleep(500);
+      manager.scheduleLbUpdate();
+    }
+  });
 }
 
 main().catch(err => {

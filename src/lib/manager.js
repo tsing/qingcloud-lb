@@ -1,9 +1,10 @@
 /* @flow */
 
 import LRU from 'lru-cache';
+import Observable from 'zen-observable';
 
 import type {
-  CSphereCredential, QingcloudCredential,
+  CSphereCredential, QingcloudCredential, ServiceMapping,
   Service, LB, Backend, Mappings, ServiceContainer, Container, Node
 } from './types';
 import {sleep} from './utils';
@@ -115,33 +116,54 @@ export default class Manager {
       .then(onFinish);
   }
 
-  async listenToEvents(mappings: Mappings): Promise<void> {
-    const statusList = [
-      'die',
-      'restart',
-      'start'
-    ];
+  async matchMapping(mappings: Mappings, containerID: string): Promise<?ServiceMapping> {
+    let mapping = null;
 
-    const iteraotr = this.csphere.containerListener(statusList);
-    for (const promise of iteraotr) {
-      const {id: containerID} = await promise;
-      await sleep(500);
-      const container = await this.csphere.container(containerID);
-      let mapping = null;
-      if (container) {
-        mapping = mappings.find(m => isServiceContainer(container, m.service));
-      } else {
-        const cachedService = this.popCache(containerID);
-        if (cachedService) {
-          mapping = mappings.find(m => sameService(m.service, cachedService));
-        }
-      }
-
-      if (mapping) {
-        const lbs = await this.sync(mapping.service, mapping.lbs);
-        this.queueLbUpdate(lbs);
-        sleep(1000).then(() => this.scheduleLbUpdate());
+    const container = await this.csphere.container(containerID);
+    if (container) {
+      mapping = mappings.find(m => isServiceContainer(container, m.service));
+    } else {
+      const cachedService = self.popCache(containerID);
+      if (cachedService) {
+        mapping = mappings.find(m => sameService(m.service, cachedService));
       }
     }
+    return mapping;
+  }
+
+  observe(mappings: Mappings, subscriber: Object): Observable {
+    const events = [
+      'die',
+      'restart',
+      'start',
+      'destroy'
+    ];
+
+    const self = this;
+    let subscription;
+
+    function listenToEvents(observer) {
+      subscription = self.csphere.listen(events).subscribe({
+        async next({id: containerID}) {
+          const mapping = await self.matchMapping(mappings, containerID);
+          if (mapping) {
+            observer.next(mapping);
+          }
+        },
+
+        complete() {
+          console.error('Eventsource closed, restarting');
+          listenToEvents(observer);
+        }
+      });
+    }
+
+    return new Observable(observer => {
+      listenToEvents(observer);
+
+      return _ => {
+        subscription && subscription.unsubscribe();
+      };
+    }).subscribe(subscriber);
   }
 }

@@ -1,6 +1,7 @@
 /* @flow */
 
 import EventSource from 'eventsource';
+import Observable from 'zen-observable';
 
 import type {Service, Container, ServiceContainer, Node} from './types';
 
@@ -88,47 +89,36 @@ export default class CSphereAPI {
     return await Promise.all(promises);
   }
 
-  containerListener(statusList: Array<string>): Object {
-    const es = new EventSource(`${this.endpoint}/api/events?type=es`, {
-      headers: {
-        'Csphere-Api-Key': this.token
-      }
-    });
-    let deferred;
-
-    es.addEventListener('docker', ({data}) => {
-      const payload = JSON.parse(data);
-      if (statusList.includes(payload.status)) {
-        if (deferred) {
-          deferred.resolve(payload);
-          deferred = null;
+  listen(events: Array<string>): Observable {
+    return new Observable(observer => {
+      const es = new EventSource(`${this.endpoint}/api/events?type=es`, {
+        headers: {
+          'Csphere-Api-Key': this.token
         }
-      }
-    });
-    es.addEventListener('error', err => {
-      if (deferred) {
-        deferred.reject(err);
-      }
-    });
+      });
 
-    return {
-      [Symbol.iterator]() {
-        return this;
-      },
+      es.addEventListener('open', () => {
+        console.log('Eventsource opened');
+      });
 
-      next() {
-        if (!deferred) {
-          deferred = {};
-          deferred.promise = new Promise((resolve, reject) => {
-            // $FlowIssue
-            deferred.resolve = resolve
-            // $FlowIssue
-            deferred.reject = reject;
-          });
+      es.addEventListener('docker', ({data}) => {
+        const payload = JSON.parse(data);
+        if (events.includes(payload.status)) {
+          observer.next(payload);
         }
-        return {value: deferred.promise, done: false};
+      });
+
+      es.addEventListener('error', err => {
+        console.error(err.stack);
+        es.close();
+        console.log('Eventsource closed');
+        observer.complete();
+      });
+
+      return () => {
+        es.close();
       }
-    };
+    });
   }
 }
 

@@ -19,6 +19,7 @@
     "eventsource": "~0.2.1",
     "isomorphic-fetch": "~2.2.1",
     "lru-cache": "~4.0.0",
-    "qingcloud": "~1.0.0"
+    "qingcloud": "~1.0.0",
+    "zen-observable": "~0.2.1"
   }
 }
