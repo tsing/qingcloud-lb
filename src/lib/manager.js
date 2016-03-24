@@ -142,8 +142,8 @@ export default class Manager {
     const self = this;
     let subscription;
 
-    function listenToEvents(observer) {
-      subscription = self.csphere.listen(events).subscribe({
+    function listenToEvents(observer, lastEventID) {
+      subscription = self.csphere.listen(events, lastEventID).subscribe({
         async next({id: containerID}) {
           const mapping = await self.matchMapping(mappings, containerID);
           if (mapping) {
@@ -151,9 +151,9 @@ export default class Manager {
           }
         },
 
-        complete() {
+        complete(lastEventID) {
           console.error('Eventsource closed, restarting');
-          listenToEvents(observer);
+          listenToEvents(observer, lastEventID);
         }
       });
     }

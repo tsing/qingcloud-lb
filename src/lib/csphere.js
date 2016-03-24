@@ -89,11 +89,12 @@ export default class CSphereAPI {
     return await Promise.all(promises);
   }
 
-  listen(events: Array<string>): Observable {
+  listen(events: Array<string>, lastEventID?: ?number): Observable {
     return new Observable(observer => {
       const es = new EventSource(`${this.endpoint}/api/events?type=es`, {
         headers: {
-          'Csphere-Api-Key': this.token
+          'Csphere-Api-Key': this.token,
+          'Last-Event-ID': lastEventID
         }
       });
 
@@ -101,7 +102,13 @@ export default class CSphereAPI {
         console.log('Eventsource opened');
       });
 
-      es.addEventListener('docker', ({data}) => {
+      es.addEventListener('message', ({lastEventId: id}) => {
+        lastEventID = id;
+      });
+
+      es.addEventListener('docker', ({data, lastEventId: id}) => {
+        lastEventID = id;
+
         const payload = JSON.parse(data);
         if (events.includes(payload.status)) {
           observer.next(payload);
@@ -112,7 +119,7 @@ export default class CSphereAPI {
         console.error(err.stack);
         es.close();
         console.log('Eventsource closed');
-        observer.complete();
+        observer.complete(lastEventID);
       });
 
       return () => {
