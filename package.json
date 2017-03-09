@@ -4,22 +4,32 @@
   "description": "Monitor instance services status and trigger load balancer update",
   "main": "main.js",
   "scripts": {
-    "start": "babel-node src/main.js config.json",
+    "start": "node main.js config.json",
+    "lint": "flow && eslint --quiet src",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "tsing <tsing@nicescale.com>",
   "license": "ISC",
   "dependencies": {
-    "babel-cli": "~6.6.5",
-    "babel-plugin-syntax-async-functions": "~6.5.0",
-    "babel-plugin-syntax-flow": "~6.5.0",
-    "babel-plugin-transform-async-to-generator": "~6.7.0",
-    "babel-plugin-transform-flow-strip-types": "~6.7.0",
-    "babel-preset-es2015-node5": "~1.1.2",
-    "eventsource": "~0.2.1",
-    "isomorphic-fetch": "~2.2.1",
-    "lru-cache": "~4.0.0",
-    "qingcloud": "~1.0.0",
-    "zen-observable": "~0.2.1"
+    "babel-plugin-transform-async-generator-functions": "^6.22.0",
+    "babel-plugin-transform-async-to-generator": "~6.22.0",
+    "babel-plugin-transform-es2015-modules-commonjs": "~6.23.0",
+    "babel-polyfill": "~6.23.0",
+    "babel-preset-flow": "~6.23.0",
+    "babel-register": "~6.23.0",
+    "debug": "~2.6.1",
+    "dotenv": "^4.0.0",
+    "eventsource": "~0.2.2",
+    "node-fetch": "~1.6.3",
+    "qingcloud": "~1.0.2"
+  },
+  "devDependencies": {
+    "babel-eslint": "~7.1.1",
+    "eslint": "~3.17.1",
+    "eslint-config-airbnb": "~14.1.0",
+    "eslint-plugin-import": "~2.2.0",
+    "eslint-plugin-jsx-a11y": "~4.0.0",
+    "eslint-plugin-react": "~6.10.0",
+    "flow-bin": "~0.41.0"
   }
 }

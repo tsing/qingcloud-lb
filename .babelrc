@@ -1,9 +1,10 @@
 {
-  "presets": ["es2015-node5"],
+  "presets": [
+    "flow"
+  ],
   "plugins": [
-    "syntax-async-functions",
-    "syntax-flow",
+    "transform-async-generator-functions",
     "transform-async-to-generator",
-    "transform-flow-strip-types"
+    "transform-es2015-modules-commonjs"
   ]
 }

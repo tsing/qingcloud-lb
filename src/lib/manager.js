@@ -1,85 +1,78 @@
 /* @flow */
 
-import LRU from 'lru-cache';
-import Observable from 'zen-observable';
+import type { App, LB, QCBackend } from './types';
+import { sleep, logger } from './utils';
 
-import type {
-  CSphereCredential, QingcloudCredential, ServiceMapping,
-  Service, LB, Backend, Mappings, ServiceContainer, Container, Node
-} from './types';
-import {sleep} from './utils';
-
-import CSphereAPI, {exposedPort, isServiceContainer} from './csphere';
+import CSphereAPI from './csphere';
 import QingcloudAPI from './qingcloud';
-
-function sameService(service1: Service, service2: Service): boolean {
-  return Object.keys(service1).every(key => service1[key] === service2[key]);
-}
 
 export default class Manager {
   csphere: CSphereAPI;
   qingcloud: QingcloudAPI;
   queue: Array<LB>;
-  containerCache: LRU;
   lbPending: boolean;
+  lbPromise: Promise<void>;
 
-  constructor(csphere: CSphereCredential, qingcloud: QingcloudCredential) {
-    this.csphere = new CSphereAPI(csphere.url, csphere.token);
-    this.qingcloud = new QingcloudAPI(qingcloud.zone, qingcloud.key, qingcloud.secret);
+  constructor(csphere: CSphereAPI, qingcloud: QingcloudAPI) {
+    this.csphere = csphere;
+    this.qingcloud = qingcloud;
     this.queue = [];
-    this.containerCache = LRU(200);
     this.lbPending = false;
+    this.lbPromise = Promise.resolve();
   }
 
-  async sync(service: Service, lbs: Array<LB>): Promise<Array<LB>> {
-    console.log('Service', service);
-    const backends = await this.fetchBackends(service);
-    console.log('backends', backends);
-    return await this.saveBackends(service, lbs, backends);
-  }
-
-  cache(container: ServiceContainer, service: Service): void {
-    this.containerCache.set(container.Id, service);
-  }
-
-  popCache(containerID: string): ?Service {
-    if (!this.containerCache.has(containerID)) {
-      return null;
+  async sync(app: App, lbs: Array<LB>): Promise<void> {
+    logger('syncing app: %o', app);
+    const backends = await this.fetchBackends(app);
+    logger('fetched backends: %o', backends);
+    const changedLbs = await this.saveBackends(app, lbs, backends);
+    if (changedLbs.length > 0) {
+      this.queueLbUpdate(changedLbs);
     }
-    const service = this.containerCache.get(containerID);
-    this.containerCache.del(containerID);
-    return service;
   }
 
-  async fetchBackends(service: Service): Promise<Array<Backend>> {
-    const {instance, name, port} = service;
+  async fetchBackends(app: App): Promise<Array<QCBackend>> {
+    const { instance, service, port } = app;
 
-    const containers = await this.csphere.serviceContainers(instance, name);
-    const nodeIDs = Array.from(new Set(containers.map(c => c.node_id)));
-    const nodes = await this.csphere.nodes(nodeIDs);
+    const containers = await this.csphere.serviceContainers(instance, service);
+    const nics = await this.qingcloud.describeNics();
 
-    containers.forEach(c => this.cache(c, service));
+    const backends = [];
 
-    return containers.map(c => {
-      const node = nodes.find(node => node.id === c.node_id);
-      const nodePort = exposedPort(c, port);
-
-      return {
-        resource_id: node.labels.qingcloud,
-        port: nodePort,
-        weight: 1,
-        loadbalancer_backend_name: `${instance}-${name}-${c.Labels.csphere_containerseq}`
+    for (const container of containers) {
+      const ip = container.Labels['com.docker.network.container.ipv4'];
+      if (!ip) {
+        logger('container ip empty: %O', container);
+        continue;
       }
-    }).filter(c => c.port);
+
+      const nic = nics.find(n => n.private_ip === ip);
+      if (!nic) {
+        logger('nic not found, coontainer: %O', container);
+        continue;
+      }
+
+      backends.push({
+        resource_id: nic.instance_id,
+        nic_id: nic.nic_id,
+        port,
+        weight: service.weight || 10,
+        loadbalancer_backend_name: `${container.Labels.csphere_containerseq}.${service}.${instance}`,
+      });
+    }
+
+    return backends;
   }
 
-  async saveBackends(service: Service, lbs: Array<LB>, backends: Array<Backend>): Promise<Array<LB>> {
-    const {qingcloud} = this;
+  async saveBackends(
+    app: App,
+    lbs: Array<LB>,
+    backends: Array<QCBackend>,
+  ): Promise<Array<LB>> {
+    const { qingcloud } = this;
 
-    const nameFilter = (name: string) => name.startsWith(`${service.instance}-${service.name}-`);
-    const promises = lbs.map(async function(lb) {
-      return await qingcloud.syncBackends(lb, backends, nameFilter);
-    });
+    const nameFilter = (name: string) => name.endsWith(`.${app.service}.${app.instance}`);
+    const promises = lbs.map(lb => qingcloud.syncBackends(lb, backends, nameFilter));
 
     const changes = await Promise.all(promises);
     return lbs.filter((_, idx) => changes[idx]);
@@ -89,81 +82,35 @@ export default class Manager {
     this.queue.push(...lbs);
   }
 
-  scheduleLbUpdate() {
+  async waitForLB() {
+    await this.lbPromise;
+  }
+
+  async updateLB() {
+    this.lbPending = true;
+    const listeners = this.queue.map(lb => lb.listener);
+    this.queue = [];
+
+    logger('LB update started %o', listeners);
+    await this.qingcloud.updateLoadBalancers(listeners);
+    this.lbPending = false;
+
+    if (this.queue.length > 0) {
+      this.scheduleLbUpdate();
+    }
+  }
+
+  async scheduleLbUpdate() {
     if (this.queue.length === 0) {
       return;
     }
 
     if (this.lbPending) {
-      console.log('LB update queued');
+      logger('LB update queued');
       return;
     }
 
-    const onFinish = () => {
-      console.log('LB update finished');
-
-      this.lbPending = false;
-      this.scheduleLbUpdate();
-    };
-
-    this.lbPending = true;
-    const listeners = this.queue.map(lb => lb.listener);
-    this.queue = [];
-
-    console.log('LB update started');
-    this.qingcloud
-      .updateLoadBalancers(listeners)
-      .then(onFinish);
-  }
-
-  async matchMapping(mappings: Mappings, containerID: string): Promise<?ServiceMapping> {
-    let mapping = null;
-
-    const container = await this.csphere.container(containerID);
-    if (container) {
-      mapping = mappings.find(m => isServiceContainer(container, m.service));
-    } else {
-      const cachedService = self.popCache(containerID);
-      if (cachedService) {
-        mapping = mappings.find(m => sameService(m.service, cachedService));
-      }
-    }
-    return mapping;
-  }
-
-  observe(mappings: Mappings, subscriber: Object): Observable {
-    const events = [
-      'die',
-      'restart',
-      'start',
-      'destroy'
-    ];
-
-    const self = this;
-    let subscription;
-
-    function listenToEvents(observer, lastEventID) {
-      subscription = self.csphere.listen(events, lastEventID).subscribe({
-        async next({id: containerID}) {
-          const mapping = await self.matchMapping(mappings, containerID);
-          if (mapping) {
-            observer.next(mapping);
-          }
-        },
-
-        complete(lastEventID) {
-          console.error('Eventsource closed, restarting');
-          listenToEvents(observer, lastEventID);
-        }
-      });
-    }
-
-    return new Observable(observer => {
-      listenToEvents(observer);
-
-      return _ => {
-        subscription && subscription.unsubscribe();
-      };
-    }).subscribe(subscriber);
+    await sleep(300);
+    this.lbPromise = this.updateLB();
   }
 }

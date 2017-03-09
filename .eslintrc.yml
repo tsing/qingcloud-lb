@@ -1,0 +1,18 @@
+env:
+  es6: true
+  node: true
+extends: 'airbnb'
+parser: 'babel-eslint'
+parserOptions:
+  sourceType: module
+  ecmaVersion: 2017
+globals:
+  fetch: false
+rules:
+  no-restricted-syntax:
+    - error
+    - ForInStatement
+    - LabeledStatement
+    - WithStatement
+  no-continue:
+    - warn

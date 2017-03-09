@@ -1,68 +1,46 @@
 /* @flow */
 
-export type LB = {
-  listener: string;
-  policy?: string;
+export type QCNic = {
+  nic_id: string;
+  private_ip: string;
+  instance_id: string;
 }
 
-export type Service = {
-  instance: string;
-  name: string;
+export type QCBackend = {
   port: number;
-}
-
-export type ServiceMapping = {
-  service: Service;
-  lbs: Array<LB>;
-};
-
-export type Mappings = Array<ServiceMapping>;
-
-export type CSphereCredential = {
-  token: string;
-  url: string;
-}
-
-export type QingcloudCredential = {
-  zone: string;
-  key: string;
-  secret: string;
-}
-
-export type Backend = {
   resource_id: string;
-  port: number;
-  weight: number;
+  loadbalancer_policy_id?: string;
+  nic_id: string;
+  loadbalancer_id?: string;
   loadbalancer_backend_name: string;
 }
 
-type ServiceLabels = {
-  csphere_instancename: string;
-  csphere_servicename: string;
-  csphere_containerseq: string;
-}
+export type LB = {|
+  listener: string;
+  policy?: string;
+|}
 
-export type Container = {
-  Id: string;
-  node_id: string;
-  Labels?: ?ServiceLabels;
-}
-
-export type ServiceContainer = Container & {
-  Labels: ServiceLabels;
-  Ports: Array<{
-    IP: string;
-    PrivatePort: number;
-    PublicPort: number;
-    Type: 'tcp' | 'udp'
-  }>;
-}
+export type App = {|
+  instance: string;
+  service: string;
+  port: number;
+  weight?: number;
+|}
 
 export type Node = {
   id: string;
-  labels: {
-    qingcloud: string;
+  ip: string;
+}
+
+export type Container = {
+  node_id: string;
+  Labels: {
+    csphere_containerseq: string;
+    'com.docker.network.container.ipv4': string;
   };
 }
 
-export type BackendNameFilter = (name: string) => boolean;
+export type AppMapping = {|
+  app: App;
+  lbs: Array<LB>;
+|}
