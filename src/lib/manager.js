@@ -32,7 +32,7 @@ export default class Manager {
   }
 
   async fetchBackends(app: App): Promise<Array<QCBackend>> {
-    const { instance, service, port } = app;
+    const { instance, service, port, weight } = app;
 
     const containers = await this.csphere.serviceContainers(instance, service);
     const nics = await this.qingcloud.describeNics();
@@ -56,7 +56,7 @@ export default class Manager {
         resource_id: nic.instance_id,
         nic_id: nic.nic_id,
         port,
-        weight: service.weight || 10,
+        weight: weight || 10,
         loadbalancer_backend_name: `${container.Labels.csphere_containerseq}.${service}.${instance}`,
       });
     }
